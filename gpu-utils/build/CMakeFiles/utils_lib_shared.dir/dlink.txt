@@ -1,0 +1,1 @@
+/usr/common/software/sles15_cgpu/cuda/11.1.1/bin/nvcc    -Xcompiler=-fPIC -Wno-deprecated-gpu-targets -shared -dlink CMakeFiles/utils_obj.dir/gpu_common.cpp.o CMakeFiles/utils_obj.dir/gpu_utils.cpp.o -o CMakeFiles/utils_lib_shared.dir/cmake_device_link.o 
