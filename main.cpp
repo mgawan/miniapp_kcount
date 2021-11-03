@@ -56,14 +56,25 @@ int main (int argc, char* argv[]){
     uint32_t num_valid_kmers = 0;
     pnp_gpu_driver.process_seq_block(seq_block_in, num_valid_kmers);
 
-    // std::cout<<"Initialized PnP GPU driver "<<std::endl;
+    if (pnp_gpu_driver.kernel_is_done()){
+        pnp_gpu_driver.pack_seq_block(seq_block_in);
+    }
 
-
-    // pnp_gpu_driver->process_seq_block(state->seq_block, num_valid_kmers);
+    int num_targets = (int)pnp_gpu_driver.supermers.size();
     
-    // while (!state->pnp_gpu_driver->kernel_is_done()) {
-    // }
+    for (int i = 0; i < num_targets; i++) {
+        auto target = pnp_gpu_driver.supermers[i].target;
+        auto offset = pnp_gpu_driver.supermers[i].offset;
+        auto len = pnp_gpu_driver.supermers[i].len;
+        std::string supermer_seq;
+        
+        int packed_len = len / 2;
+        if (offset % 2 || len % 2) packed_len++;
+        supermer_seq = pnp_gpu_driver.packed_seqs.substr(offset / 2, packed_len);
+        if (offset % 2) supermer_seq[0] &= 15;
+        if ((offset + len) % 2) supermer_seq[supermer_seq.length() - 1] &= 240;
+        std::cout <<" Target:"<< i << " seq:"<< supermer_seq<< std::endl;
+  }
 
-    // pnp_gpu_driver->pack_seq_block(state->seq_block);
 
 }
