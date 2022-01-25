@@ -4,11 +4,11 @@
 #include <fstream>
 #include "./parse_and_pack.hpp"
 
-#define QUAL_OFFSET 10
+#define QUAL_OFFSET 0
 #define MINIMIZER_LEN 100
 #define KMER_LEN 33
 #define KCOUNT_SEQ_BLOCK_SIZE 3000000
-#define MAX_K 77
+#define MAX_K 33
 
 const int N_LONGS = (MAX_K + 31) / 32;
 
@@ -50,14 +50,30 @@ int main (int argc, char* argv[]){
     std::cout << "total read size in:"<<read_size_in<<std::endl;
     std::cout << "block size:"<< seq_block_in.size()<<std::endl;
     std::cout << "total reads:" << reads.size() << std::endl;
-
+    int minimizer_len = KMER_LEN * 2 / 3 + 1;
+    std::cout << "Minimizer len:"<< minimizer_len << std::endl;
     double driver_init_time = 0;
-    kcount_gpu::ParseAndPackGPUDriver pnp_gpu_driver(0, 1, QUAL_OFFSET, KMER_LEN, N_LONGS, MINIMIZER_LEN, driver_init_time);
+    kcount_gpu::ParseAndPackGPUDriver pnp_gpu_driver(0, 1, QUAL_OFFSET, KMER_LEN, N_LONGS, minimizer_len, driver_init_time);
     uint32_t num_valid_kmers = 0;
-    pnp_gpu_driver.process_seq_block(seq_block_in, num_valid_kmers);
+    auto status = pnp_gpu_driver.process_seq_block(seq_block_in, num_valid_kmers);
 
-    if (pnp_gpu_driver.kernel_is_done()){
+    if(status == 2){
+        std::cout<< "ERR: kernel launch in process_seq_block failed!" << std::endl;
+        std::cout << "length too large" << std::endl;
+    }else if ( status == 3){
+        std::cout<< "ERR: kernel launch in process_seq_block failed!" << std::endl;
+        std::cout << "length zero" << std::endl; 
+    }else if (status == 4){
+        std::cout<< "ERR: kernel launch in process_seq_block failed!" << std::endl;
+        std::cout << "length less than kmer length" << std::endl;
+    }else{
+        std::cout << "INFO: Kernel launch success!"<<std::endl;
+    }
+
+    if (pnp_gpu_driver.kernel_synch()){
         pnp_gpu_driver.pack_seq_block(seq_block_in);
+    }else{
+        std::cout<< "ERR: pack kernel was not launched" << std::endl;
     }
 
     int num_targets = (int)pnp_gpu_driver.supermers.size();
@@ -66,6 +82,9 @@ int main (int argc, char* argv[]){
         auto target = pnp_gpu_driver.supermers[i].target;
         auto offset = pnp_gpu_driver.supermers[i].offset;
         auto len = pnp_gpu_driver.supermers[i].len;
+
+         std::cout <<" Target:"<<target<< " offset:"<< offset << " len:" << len<< std::endl;
+
         std::string supermer_seq;
         
         int packed_len = len / 2;
@@ -73,8 +92,10 @@ int main (int argc, char* argv[]){
         supermer_seq = pnp_gpu_driver.packed_seqs.substr(offset / 2, packed_len);
         if (offset % 2) supermer_seq[0] &= 15;
         if ((offset + len) % 2) supermer_seq[supermer_seq.length() - 1] &= 240;
-        std::cout <<" Target:"<< i << " seq:"<< supermer_seq<< std::endl;
+
+        std::cout <<" seq:"<< supermer_seq << " len:" << len<< std::endl;
   }
+
 
 
 }

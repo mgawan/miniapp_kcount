@@ -246,6 +246,8 @@ kcount_gpu::ParseAndPackGPUDriver::ParseAndPackGPUDriver(int upcxx_rank_me, int 
   cudaErrchk(cudaMalloc((void **)&dev_num_supermers, sizeof(int)));
   cudaErrchk(cudaMalloc((void **)&dev_num_valid_kmers, sizeof(int)));
   cout << "INFO:pnp gpu driver initiated"<< std::endl;
+  std::cout << "INFO: upcxx_rank:"<< upcxx_rank_me << " ranks:"<<upcxx_rank_n<< " qual_offset:"<< qual_offset << " kmer_len:" << kmer_len << " num_kmer_longs:"<< num_kmer_longs << " minimizer_len:" << minimizer_len << std::endl;
+
   // total storage required is approx KCOUNT_SEQ_BLOCK_SIZE * (1 + num_kmers_longs * sizeof(uint64_t) + sizeof(int) + 1)
   dstate = new ParseAndPackDriverState();
   init_timer.stop();
@@ -264,13 +266,13 @@ kcount_gpu::ParseAndPackGPUDriver::~ParseAndPackGPUDriver() {
   delete dstate;
 }
 
-bool kcount_gpu::ParseAndPackGPUDriver::process_seq_block(const string &seqs, unsigned int &num_valid_kmers) {
+int kcount_gpu::ParseAndPackGPUDriver::process_seq_block(const string &seqs, unsigned int &num_valid_kmers) {
   std::cout<< "INFO:starting process_seq_block" << std::endl;
   QuickTimer func_timer, kernel_timer;
 
-  if (seqs.length() >= KCOUNT_SEQ_BLOCK_SIZE) return false;
-  if (seqs.length() == 0) return false;
-  if (seqs.length() < (unsigned int)kmer_len) return false;
+  if (seqs.length() >= KCOUNT_SEQ_BLOCK_SIZE) return 2;
+  if (seqs.length() == 0) return 3;
+  if (seqs.length() < (unsigned int)kmer_len) return 4;
 
   func_timer.start();
   cudaErrchk(cudaEventCreateWithFlags(&dstate->event, cudaEventDisableTiming | cudaEventBlockingSync));
@@ -306,6 +308,7 @@ bool kcount_gpu::ParseAndPackGPUDriver::process_seq_block(const string &seqs, un
 }
 
 void kcount_gpu::ParseAndPackGPUDriver::pack_seq_block(const string &seqs) {
+  std::cout<< "INFO: launching pack_seqs kernels"<< std::endl;
   int packed_seqs_len = halve_up(seqs.length());
   cudaErrchk(cudaMemcpy(dev_seqs, &seqs[0], seqs.length(), cudaMemcpyHostToDevice));
   cudaErrchk(cudaMemset(dev_packed_seqs, 0, packed_seqs_len));
@@ -318,6 +321,7 @@ void kcount_gpu::ParseAndPackGPUDriver::pack_seq_block(const string &seqs) {
   t_kernel += t.get_elapsed();
   packed_seqs.resize(packed_seqs_len);
   cudaErrchk(cudaMemcpy(&(packed_seqs[0]), dev_packed_seqs, packed_seqs_len, cudaMemcpyDeviceToHost));
+  std::cout<< "INFO: launched pack_seqs kernels"<< std::endl;
 }
 
 tuple<double, double> kcount_gpu::ParseAndPackGPUDriver::get_elapsed_times() { return {t_func, t_kernel}; }
@@ -326,4 +330,19 @@ bool kcount_gpu::ParseAndPackGPUDriver::kernel_is_done() {
   if (cudaEventQuery(dstate->event) != cudaSuccess) return false;
   cudaErrchk(cudaEventDestroy(dstate->event));
   return true;
+}
+
+bool kcount_gpu::ParseAndPackGPUDriver::kernel_synch() {
+  if (cudaEventQuery(dstate->event) != cudaSuccess){
+    cudaErrchk(cudaEventSynchronize(dstate->event));
+  }
+
+  if(cudaEventQuery(dstate->event) != cudaSuccess){
+    std::cout << "ERR: error synchronizing kernels" << std::endl;
+    return false;
+  }else{
+    std::cout << "INFO: kernel synched" << std::endl;
+    return true;
+  }
+  
 }

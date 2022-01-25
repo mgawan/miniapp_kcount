@@ -80,9 +80,10 @@ class ParseAndPackGPUDriver {
 
   ParseAndPackGPUDriver(int upcxx_rank_me, int upcxx_rank_n, int qual_offset, int kmer_len, int num_kmer_longs, int minimizer_len, double &init_time);
   ~ParseAndPackGPUDriver();
-  bool process_seq_block(const std::string &seqs, unsigned int &num_valid_kmers);
+  int process_seq_block(const std::string &seqs, unsigned int &num_valid_kmers);
   void pack_seq_block(const std::string &seqs);
   bool kernel_is_done();
+  bool kernel_synch();
 
   std::tuple<double, double> get_elapsed_times();
 };
