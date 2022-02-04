@@ -3,6 +3,7 @@
 #include <string>
 #include <fstream>
 #include "./parse_and_pack.hpp"
+#include "utils_ht.hpp"
 
 #define QUAL_OFFSET 0
 #define MINIMIZER_LEN 100
@@ -27,7 +28,15 @@ int main (int argc, char* argv[]){
     std::string   read_in;
     std::string seq_block_in;
     std::string in_file = argv[1];
+
     uint32_t dropped = 0;
+
+    HashTableGPUDriver<KMER_LEN> ht_gpu_driver;
+    uint32_t kmer_max = 1000000; 
+    ht_gpu_driver.init(0, 1, KMER_LEN, kmer_max, gpu_avail_mem_per_rank, init_time, gpu_bytes_reqd);
+
+    int upcxx_rank_me, int upcxx_rank_n, int kmer_len, int max_elems, size_t gpu_avail_mem,
+                                     double &init_time, size_t &gpu_bytes_reqd) 
 
     std::ifstream read_file(in_file);
     uint32_t read_size_in = 0;
@@ -79,21 +88,24 @@ int main (int argc, char* argv[]){
     int num_targets = (int)pnp_gpu_driver.supermers.size();
     
     for (int i = 0; i < num_targets; i++) {
+        Supermer supermer;
         auto target = pnp_gpu_driver.supermers[i].target;
         auto offset = pnp_gpu_driver.supermers[i].offset;
         auto len = pnp_gpu_driver.supermers[i].len;
 
          std::cout <<" Target:"<<target<< " offset:"<< offset << " len:" << len<< std::endl;
 
-        std::string supermer_seq;
+       // std::string supermer_seq;
         
         int packed_len = len / 2;
         if (offset % 2 || len % 2) packed_len++;
-        supermer_seq = pnp_gpu_driver.packed_seqs.substr(offset / 2, packed_len);
-        if (offset % 2) supermer_seq[0] &= 15;
-        if ((offset + len) % 2) supermer_seq[supermer_seq.length() - 1] &= 240;
-
-        std::cout <<" seq:"<< supermer_seq << " len:" << len<< std::endl;
+        supermer.seq = pnp_gpu_driver.packed_seqs.substr(offset / 2, packed_len);
+        if (offset % 2) supermer.seq[0] &= 15;
+        if ((offset + len) % 2) supermer.seq[supermer.seq.length() - 1] &= 240;
+        
+        supermer.count = (uint16_t)1;
+        kmer_dht->add_supermer(supermer, target);
+        std::cout <<" seq:"<< supermer.seq << " len:" << len<< std::endl;
   }
 
 
