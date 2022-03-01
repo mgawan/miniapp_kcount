@@ -31,12 +31,11 @@ int main (int argc, char* argv[]){
 
     uint32_t dropped = 0;
 
-    HashTableGPUDriver<KMER_LEN> ht_gpu_driver;
-    uint32_t kmer_max = 1000000; 
-    ht_gpu_driver.init(0, 1, KMER_LEN, kmer_max, gpu_avail_mem_per_rank, init_time, gpu_bytes_reqd);
+     uint32_t kmer_max = 1000000; 
+    // size_t gpu_avail_mem = 8500000000; // about 8 GB.
+    // size_t gpu_bytes_req = 0;
+    // ht_gpu_driver.init(0, 1, KMER_LEN, kmer_max, gpu_avail_mem, gpu_bytes_req);
 
-    int upcxx_rank_me, int upcxx_rank_n, int kmer_len, int max_elems, size_t gpu_avail_mem,
-                                     double &init_time, size_t &gpu_bytes_reqd) 
 
     std::ifstream read_file(in_file);
     uint32_t read_size_in = 0;
@@ -87,6 +86,8 @@ int main (int argc, char* argv[]){
 
     int num_targets = (int)pnp_gpu_driver.supermers.size();
     
+    KmerDHT<MAX_K> kmer_dht(kmer_max);
+  
     for (int i = 0; i < num_targets; i++) {
         Supermer supermer;
         auto target = pnp_gpu_driver.supermers[i].target;
@@ -104,9 +105,14 @@ int main (int argc, char* argv[]){
         if ((offset + len) % 2) supermer.seq[supermer.seq.length() - 1] &= 240;
         
         supermer.count = (uint16_t)1;
-        kmer_dht->add_supermer(supermer, target);
+        kmer_dht.add_supermer(supermer, target);
+        kmer_dht.ht_gpu_driver.insert_supermer(supermer.seq, supermer.count);
+
         std::cout <<" seq:"<< supermer.seq << " len:" << len<< std::endl;
   }
+  int num_dropped = 0, num_unique = 0, num_purged = 0;
+  kmer_dht.ht_gpu_driver.insert_supermer_block(); // this should launch the kernel
+  kmer_dht.ht_gpu_driver.done_all_inserts(num_dropped, num_unique, num_purged);
 
 
 

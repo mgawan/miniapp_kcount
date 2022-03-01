@@ -146,8 +146,7 @@ class HashTableGPUDriver {
   HashTableGPUDriver();
   ~HashTableGPUDriver();
 
-  void init(int upcxx_rank_me, int upcxx_rank_n, int kmer_len, int max_elems, size_t gpu_avail_mem, double &init_time,
-            size_t &gpu_bytes_reqd);
+  void init(int upcxx_rank_me, int upcxx_rank_n, int kmer_len, int max_elems, size_t gpu_avail_mem, size_t &gpu_bytes_reqd);
 
   void init_ctg_kmers(int max_elems, size_t gpu_avail_mem);
 

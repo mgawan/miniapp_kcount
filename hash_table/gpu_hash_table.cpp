@@ -430,10 +430,9 @@ template <int MAX_K>
 HashTableGPUDriver<MAX_K>::HashTableGPUDriver() {}
 
 template <int MAX_K>
-void HashTableGPUDriver<MAX_K>::init(int upcxx_rank_me, int upcxx_rank_n, int kmer_len, int max_elems, size_t gpu_avail_mem,
-                                     double &init_time, size_t &gpu_bytes_reqd) {
-  QuickTimer init_timer;
-  init_timer.start();
+void HashTableGPUDriver<MAX_K>::init(int upcxx_rank_me, int upcxx_rank_n, int kmer_len, int max_elems, size_t gpu_avail_mem, size_t &gpu_bytes_reqd) {
+  //QuickTimer init_timer;
+  //init_timer.start();
   this->upcxx_rank_me = upcxx_rank_me;
   this->upcxx_rank_n = upcxx_rank_n;
   this->kmer_len = kmer_len;
@@ -465,8 +464,8 @@ void HashTableGPUDriver<MAX_K>::init(int upcxx_rank_me, int upcxx_rank_n, int km
   cudaErrchk(cudaMemset(gpu_insert_stats, 0, sizeof(InsertStats)));
 
   dstate = new HashTableDriverState();
-  init_timer.stop();
-  init_time = init_timer.get_elapsed();
+  //init_timer.stop();
+  //init_time = init_timer.get_elapsed();
 }
 
 template <int MAX_K>
