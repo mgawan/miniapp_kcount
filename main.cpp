@@ -2,14 +2,17 @@
 #include <vector>
 #include <string>
 #include <fstream>
-#include "./parse_and_pack.hpp"
-#include "utils_ht.hpp"
+#include "parse_and_pack.hpp"
+// #include "utils_ht.hpp"
+#include "kmer_dht.hpp"
+#include "gpu_hash_table.hpp"
+
 
 #define QUAL_OFFSET 0
 #define MINIMIZER_LEN 100
-#define KMER_LEN 33
+#define KMER_LEN 32
 #define KCOUNT_SEQ_BLOCK_SIZE 3000000
-#define MAX_K 33
+#define MAX_K 32
 
 const int N_LONGS = (MAX_K + 31) / 32;
 
@@ -28,10 +31,12 @@ int main (int argc, char* argv[]){
     std::string   read_in;
     std::string seq_block_in;
     std::string in_file = argv[1];
+    std::string hash_t_out = argv[2];
 
     uint32_t dropped = 0;
 
-     uint32_t kmer_max = 1000000; 
+     //uint32_t kmer_max = 1000000; // expected number of max kmers
+
     // size_t gpu_avail_mem = 8500000000; // about 8 GB.
     // size_t gpu_bytes_req = 0;
     // ht_gpu_driver.init(0, 1, KMER_LEN, kmer_max, gpu_avail_mem, gpu_bytes_req);
@@ -55,6 +60,10 @@ int main (int argc, char* argv[]){
         process_seq(seq, seq_block_in, dropped);
     }
 
+    uint32_t total_kmers_est = (300 - MAX_K + 1 )* reads.size();
+    uint32_t kmer_max = total_kmers_est;
+    std::cout << "estimted kmers:" << total_kmers_est << std::endl;
+     // total kmers = (length - MAX_K) +1 * reads
     std::cout << "total read size in:"<<read_size_in<<std::endl;
     std::cout << "block size:"<< seq_block_in.size()<<std::endl;
     std::cout << "total reads:" << reads.size() << std::endl;
@@ -86,7 +95,7 @@ int main (int argc, char* argv[]){
 
     int num_targets = (int)pnp_gpu_driver.supermers.size();
     
-    KmerDHT<MAX_K> kmer_dht(kmer_max);
+     KmerDHT<MAX_K> kmer_dht(kmer_max); // initializes the hash table driver, reserves space on GPU and CPU for packed sequeces.
   
     for (int i = 0; i < num_targets; i++) {
         Supermer supermer;
@@ -94,10 +103,9 @@ int main (int argc, char* argv[]){
         auto offset = pnp_gpu_driver.supermers[i].offset;
         auto len = pnp_gpu_driver.supermers[i].len;
 
-         std::cout <<" Target:"<<target<< " offset:"<< offset << " len:" << len<< std::endl;
+        // std::cout <<" Target:"<<target<< " offset:"<< offset << " len:" << len<< std::endl;
 
-       // std::string supermer_seq;
-        
+ // the below code/conversions are copied as is from metahipmer
         int packed_len = len / 2;
         if (offset % 2 || len % 2) packed_len++;
         supermer.seq = pnp_gpu_driver.packed_seqs.substr(offset / 2, packed_len);
@@ -105,14 +113,14 @@ int main (int argc, char* argv[]){
         if ((offset + len) % 2) supermer.seq[supermer.seq.length() - 1] &= 240;
         
         supermer.count = (uint16_t)1;
-        kmer_dht.add_supermer(supermer, target);
         kmer_dht.ht_gpu_driver.insert_supermer(supermer.seq, supermer.count);
 
-        std::cout <<" seq:"<< supermer.seq << " len:" << len<< std::endl;
+      //  std::cout <<" seq:"<< supermer.seq << " len:" << len<< std::endl;
   }
   int num_dropped = 0, num_unique = 0, num_purged = 0;
   kmer_dht.ht_gpu_driver.insert_supermer_block(); // this should launch the kernel
   kmer_dht.ht_gpu_driver.done_all_inserts(num_dropped, num_unique, num_purged);
+  kmer_dht.ht_gpu_driver.print_keys_vals(hash_t_out);
 
 
 

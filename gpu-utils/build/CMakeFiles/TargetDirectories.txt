@@ -1,4 +1,0 @@
-/global/homes/m/mgawan/mhm2_kcount/kcount_kernel_driver/gpu-utils/build/CMakeFiles/rebuild_cache.dir
-/global/homes/m/mgawan/mhm2_kcount/kcount_kernel_driver/gpu-utils/build/CMakeFiles/edit_cache.dir
-/global/homes/m/mgawan/mhm2_kcount/kcount_kernel_driver/gpu-utils/build/CMakeFiles/utils_lib_shared.dir
-/global/homes/m/mgawan/mhm2_kcount/kcount_kernel_driver/gpu-utils/build/CMakeFiles/utils_obj.dir

@@ -46,25 +46,19 @@
 #include <array>
 #include <unordered_map>
 #include <thread>
+#include <string>
+#include "kmer.hpp"
+// #include "kmer_dht.hpp"
 
-#include "hash_funcs.h"
+using namespace std;
 
-namespace kcount_gpu {
+//namespace kcount_gpu {
 
 enum PASS_TYPE { READ_KMERS_PASS = 0, CTG_KMERS_PASS = 1 };
 
 using count_t = uint32_t;
+using kmer_count_t = uint16_t;
 using ext_count_t = uint16_t;
-
-struct CountsArray {
-  count_t kmer_count;
-  ext_count_t ext_counts[8];
-};
-
-struct CountExts {
-  count_t count;
-  int8_t left, right;
-};
 
 template <int MAX_K>
 struct KmerArray {
@@ -73,6 +67,52 @@ struct KmerArray {
 
   void set(const uint64_t *x);
 };
+
+struct CountsArray {
+  count_t kmer_count;
+  ext_count_t ext_counts[8];
+};
+
+struct Supermer {
+  // qualities must be represented, but only as good or bad, so this is done with lowercase for bad, uppercase otherwise
+  string seq;
+  uint16_t count;
+
+  void pack(const string &unpacked_seq);
+  void unpack();
+  int get_bytes();
+};
+
+//struct FramElem;
+
+struct KmerCounts {
+ // FragElem uutig_frag;
+  // how many times this kmer has occurred: don't need to count beyond 65536
+  kmer_count_t count;
+  // the final extensions chosen - A,C,G,T, or F,X
+  char left, right;
+};
+
+template <int MAX_K>
+using KmerMap = std::unordered_map<Kmer<MAX_K>, KmerCounts>;
+
+// struct CountsArray {
+//   count_t kmer_count;
+//   ext_count_t ext_counts[8];
+// };
+
+struct CountExts {
+  count_t count;
+  int8_t left, right;
+};
+
+// template <int MAX_K>
+// struct KmerArray {
+//   static const int N_LONGS = (MAX_K + 31) / 32;
+//   uint64_t longs[N_LONGS];
+
+//   void set(const uint64_t *x);
+// };
 
 struct SupermerBuff {
   char *seqs;
@@ -111,16 +151,14 @@ struct InsertStats {
 template <int MAX_K>
 class HashTableGPUDriver {
   static const int N_LONGS = (MAX_K + 31) / 32;
-  struct HashTableDriverState;
+  //struct HashTableDriverState;
   // stores CUDA specific variables
-  HashTableDriverState *dstate = nullptr;
+ // HashTableDriverState *dstate = nullptr;
 
-  int upcxx_rank_me;
-  int upcxx_rank_n;
+  // int upcxx_rank_me;
+  // int upcxx_rank_n;
   int kmer_len;
   int buff_len = 0;
-  std::vector<KmerArray<MAX_K>> output_keys;
-  std::vector<CountExts> output_vals;
   size_t output_index = 0;
 
   KmerCountsMap<MAX_K> read_kmers_dev;
@@ -137,16 +175,19 @@ class HashTableGPUDriver {
   InsertStats *gpu_insert_stats;
   int num_gpu_calls = 0;
 
-  void insert_supermer_block();
-  void purge_invalid(int &num_purged, int &num_entries);
 
  public:
   PASS_TYPE pass_type;
+  std::vector<KmerArray<MAX_K>> output_keys;
+  std::vector<CountExts> output_vals;
 
+  void insert_supermer_block();
+  void purge_invalid(int &num_purged, int &num_entries);
+  
   HashTableGPUDriver();
   ~HashTableGPUDriver();
 
-  void init(int upcxx_rank_me, int upcxx_rank_n, int kmer_len, int max_elems, size_t gpu_avail_mem, size_t &gpu_bytes_reqd);
+  void init(int upcxx_rank_me, int upcxx_rank_n, int kmer_len_new, int max_elems, size_t gpu_avail_mem, size_t &gpu_bytes_reqd);
 
   void init_ctg_kmers(int max_elems, size_t gpu_avail_mem);
 
@@ -167,6 +208,8 @@ class HashTableGPUDriver {
   InsertStats &get_stats();
 
   int get_num_gpu_calls();
+  
+  bool print_keys_vals(std::string out_file);
 };
 
-}  // namespace kcount_gpu
+//}  // namespace kcount_gpu
