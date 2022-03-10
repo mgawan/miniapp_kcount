@@ -48,9 +48,6 @@
 #include <assert.h>
 #include <cuda_runtime_api.h>
 #include <cuda.h>
-//#include "upcxx_utils/colors.h"
-// #include "gpu-utils/gpu_common.hpp"
-// #include "gpu-utils/gpu_utils.hpp"
 #include "gpu_hash_table.hpp"
 #include "gpu_hash_funcs.hpp"
 #include "gpu_common.hpp"
@@ -60,7 +57,7 @@
 
 using namespace std;
 using namespace gpu_common;
-// using namespace kcount_gpu;
+
 
 const uint64_t KEY_EMPTY = 0xffffffffffffffff;
 const uint64_t KEY_TRANSITION = 0xfffffffffffffffe;
