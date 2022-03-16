@@ -52,41 +52,21 @@
 // #include "utils.hpp"
 #include "kmer.hpp"
 #include "gpu_hash_table.hpp"
-// #include "upcxx_utils/flat_aggr_store.hpp"
-// #include "upcxx_utils/three_tier_aggr_store.hpp"
-
 
 using namespace std;
 // global variables to avoid passing dist objs to rpcs
 int _dmin_thres = 2.0;
 
-// struct FragElem;
-
-
-// template <int MAX_K>
-// struct KmerAndExt {
-//   Kmer<MAX_K> kmer;
-//   kmer_count_t count;
-//   char left, right;
-//   UPCXX_SERIALIZED_FIELDS(kmer, count, left, right);
-// };
-
-
 size_t estimate_hashtable_memory(size_t num_elements, size_t element_size);
 using count_t = uint32_t;
-
-
 
 template <int MAX_K>
 class KmerDHT {
  private:
   KmerMap<MAX_K> local_kmers;
-
-  //upcxx_utils::ThreeTierAggrStore<Supermer> kmer_store;
   int64_t max_kmer_store_bytes;
   int64_t my_num_kmers;
   int max_rpcs_in_flight;
-  //std::chrono::time_point<std::chrono::high_resolution_clock> start_t;
 
   int minimizer_len = 15;
 
@@ -109,23 +89,7 @@ class KmerDHT {
 
   int64_t get_local_num_kmers(void);
 
-  //upcxx::intrank_t get_kmer_target_rank(const Kmer<MAX_K> &kmer, const Kmer<MAX_K> *kmer_rc = nullptr) const;
-
   KmerCounts *get_local_kmer_counts(Kmer<MAX_K> &kmer);
-
-  // bool kmer_exists(Kmer<MAX_K> kmer);
-
-  // void add_supermer(Supermer &supermer, int target_rank);
-
-  // void flush_updates();
-
-  // void finish_updates();
-
-  // one line per kmer, format:
-  // KMERCHARS LR N
-  // where L is left extension and R is right extension, one char, either X, F or A, C, G, T
-  // where N is the count of the kmer frequency
-  //void dump_kmers();
 
   typename KmerMap<MAX_K>::iterator local_kmers_begin();
 

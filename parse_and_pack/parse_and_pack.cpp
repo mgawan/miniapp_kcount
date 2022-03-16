@@ -269,7 +269,7 @@ kcount_gpu::ParseAndPackGPUDriver::~ParseAndPackGPUDriver() {
 int kcount_gpu::ParseAndPackGPUDriver::process_seq_block(const string &seqs, unsigned int &num_valid_kmers) {
   std::cout<< "INFO:starting process_seq_block" << std::endl;
   QuickTimer func_timer, kernel_timer;
-
+  std::cout << "KCOUNTSEQ:" << KCOUNT_SEQ_BLOCK_SIZE << std::endl;
   if (seqs.length() >= KCOUNT_SEQ_BLOCK_SIZE) return 2;
   if (seqs.length() == 0) return 3;
   if (seqs.length() < (unsigned int)kmer_len) return 4;

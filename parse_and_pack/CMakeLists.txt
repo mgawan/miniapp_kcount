@@ -4,7 +4,7 @@ set(CMAKE_CUDA_STANDARD 17)
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
-include(CMakeDefinitions.txt)
+include(../CMakeDefinitions.txt)
 
 # include_directories("../gpu-utils")
 

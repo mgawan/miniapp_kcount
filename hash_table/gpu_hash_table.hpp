@@ -48,7 +48,7 @@
 #include <thread>
 #include <string>
 #include "kmer.hpp"
-// #include "kmer_dht.hpp"
+
 
 using namespace std;
 
@@ -86,7 +86,6 @@ struct Supermer {
 //struct FramElem;
 
 struct KmerCounts {
- // FragElem uutig_frag;
   // how many times this kmer has occurred: don't need to count beyond 65536
   kmer_count_t count;
   // the final extensions chosen - A,C,G,T, or F,X
@@ -96,23 +95,12 @@ struct KmerCounts {
 template <int MAX_K>
 using KmerMap = std::unordered_map<Kmer<MAX_K>, KmerCounts>;
 
-// struct CountsArray {
-//   count_t kmer_count;
-//   ext_count_t ext_counts[8];
-// };
 
 struct CountExts {
   count_t count;
   int8_t left, right;
 };
 
-// template <int MAX_K>
-// struct KmerArray {
-//   static const int N_LONGS = (MAX_K + 31) / 32;
-//   uint64_t longs[N_LONGS];
-
-//   void set(const uint64_t *x);
-// };
 
 struct SupermerBuff {
   char *seqs;
@@ -151,12 +139,7 @@ struct InsertStats {
 template <int MAX_K>
 class HashTableGPUDriver {
   static const int N_LONGS = (MAX_K + 31) / 32;
-  //struct HashTableDriverState;
-  // stores CUDA specific variables
- // HashTableDriverState *dstate = nullptr;
 
-  // int upcxx_rank_me;
-  // int upcxx_rank_n;
   int kmer_len;
   int buff_len = 0;
   size_t output_index = 0;

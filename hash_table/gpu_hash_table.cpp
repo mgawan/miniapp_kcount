@@ -384,16 +384,6 @@ __global__ void gpu_insert_supermer_block(KmerCountsMap<MAX_K> elems, SupermerBu
   reduce(key_empty_overlaps, buff_len, &insert_stats->key_empty_overlaps);
 }
 
-// template <int MAX_K>
-// struct HashTableGPUDriver<MAX_K>::HashTableDriverState {
-//   cudaEvent_t event;
-//   QuickTimer insert_timer, kernel_timer;
-// };
-
-// template <int MAX_K>
-// void KmerArray<MAX_K>::set(const uint64_t *kmer) {
-//   memcpy(longs, kmer, N_LONGS * sizeof(uint64_t));
-// }
 
 
 template <int MAX_K>
@@ -432,11 +422,7 @@ HashTableGPUDriver<MAX_K>::HashTableGPUDriver() {}
 
 template <int MAX_K>
 void HashTableGPUDriver<MAX_K>::init(int upcxx_rank_me, int upcxx_rank_n, int kmer_len_new, int max_elems, size_t gpu_avail_mem, size_t &gpu_bytes_reqd) {
-  //QuickTimer init_timer;
-  //init_timer.start();
-  // this->upcxx_rank_me = upcxx_rank_me;
-  // this->upcxx_rank_n = upcxx_rank_n;
-  // this->kmer_len = kmer_len;
+
   kmer_len = kmer_len_new;
   pass_type = READ_KMERS_PASS;
   gpu_utils::set_gpu_device(upcxx_rank_me);
@@ -465,9 +451,6 @@ void HashTableGPUDriver<MAX_K>::init(int upcxx_rank_me, int upcxx_rank_n, int km
   cudaErrchk(cudaMalloc(&gpu_insert_stats, sizeof(InsertStats)));
   cudaErrchk(cudaMemset(gpu_insert_stats, 0, sizeof(InsertStats)));
 
-  //dstate = new HashTableDriverState();
-  //init_timer.stop();
-  //init_time = init_timer.get_elapsed();
 }
 
 template <int MAX_K>
@@ -494,7 +477,7 @@ HashTableGPUDriver<MAX_K>::~HashTableGPUDriver() {
 template <int MAX_K>
 void HashTableGPUDriver<MAX_K>::insert_supermer_block() {
   //dstate->insert_timer.start();
-  bool is_ctg_kmers = false;//(pass_type == CTG_KMERS_PASS);
+  bool is_ctg_kmers = (pass_type == CTG_KMERS_PASS);
   cudaErrchk(cudaMemcpy(packed_elem_buff_dev.seqs, elem_buff_host.seqs, buff_len, cudaMemcpyHostToDevice));
   cudaErrchk(cudaMemset(unpacked_elem_buff_dev.seqs, 0, buff_len * 2));
   if (is_ctg_kmers)
@@ -507,12 +490,9 @@ void HashTableGPUDriver<MAX_K>::insert_supermer_block() {
   get_kernel_config(buff_len * 2, gpu_insert_supermer_block<MAX_K>, gridsize, threadblocksize);
   gpu_insert_supermer_block<<<gridsize, threadblocksize>>>(is_ctg_kmers ? ctg_kmers_dev : read_kmers_dev, unpacked_elem_buff_dev,
                                                            buff_len * 2, kmer_len, is_ctg_kmers, gpu_insert_stats);
-  // the kernel time is not going to be accurate, because we are not waiting for the kernel to complete
-  // need to uncomment the line below, which will decrease performance by preventing the overlap of GPU and CPU execution
-  // cudaDeviceSynchronize();
-  //dstate->kernel_timer.stop();
- // num_gpu_calls++;
-  //dstate->insert_timer.stop();
+  
+  cudaDeviceSynchronize();
+
 }
 
 template <int MAX_K>
@@ -520,19 +500,19 @@ void HashTableGPUDriver<MAX_K>::insert_supermer(const string &supermer_seq, coun
   // commenting out the below because we are launching kernels from main using the gpu driver.
    if (buff_len + supermer_seq.length() + 1 >= KCOUNT_GPU_HASHTABLE_BLOCK_SIZE) {
      std::cout<< " WARNING: SUPERMER BLOCK SIZE IS INCREASING BEYOND THE HASHTABLE BLOCKSIZE LIMIT" << std::endl;
+     std::cout << "buff len current:"<< buff_len << " max buff len:" << KCOUNT_GPU_HASHTABLE_BLOCK_SIZE << std::endl;
   //   insert_supermer_block();
   //   buff_len = 0;
    }
   memcpy(&(elem_buff_host.seqs[buff_len]), supermer_seq.c_str(), supermer_seq.length());
-  // if (pass_type == CTG_KMERS_PASS) {
-  //   for (int i = 0; i < (int)supermer_seq.length(); i++) elem_buff_host.counts[buff_len + i] = supermer_count;
-  // }
+  if (pass_type == CTG_KMERS_PASS) {
+    for (int i = 0; i < (int)supermer_seq.length(); i++) elem_buff_host.counts[buff_len + i] = supermer_count;
+  }
   buff_len += supermer_seq.length();
   elem_buff_host.seqs[buff_len] = '_';
   if (pass_type == CTG_KMERS_PASS) elem_buff_host.counts[buff_len] = 0;
   buff_len++;
 
-  std::cout << "buff len current:"<< buff_len << " max buff len:" << KCOUNT_GPU_HASHTABLE_BLOCK_SIZE << std::endl;
 }
 
 template <int MAX_K>
@@ -551,16 +531,11 @@ void HashTableGPUDriver<MAX_K>::purge_invalid(int &num_purged, int &num_entries)
   gpu_purge_invalid<<<gridsize, threadblocksize>>>(read_kmers_dev, counts_gpu);
   //t.stop();
   //dstate->kernel_timer.inc(t.get_elapsed());
-
+  cudaDeviceSynchronize();
   unsigned int counts_host[NUM_COUNTS];
   cudaErrchk(cudaMemcpy(&counts_host, counts_gpu, NUM_COUNTS * sizeof(unsigned int), cudaMemcpyDeviceToHost));
   num_purged = counts_host[0];
   num_entries = counts_host[1];
-  // auto expected_num_entries = read_kmers_stats.new_inserts - num_purged;
-  // if (num_entries != (int)expected_num_entries)
-  //   cout << KLRED << "[" << upcxx_rank_me << "] WARNING mismatch " << num_entries << " != " << expected_num_entries << " diff "
-  //        << (num_entries - (int)expected_num_entries) << " new inserts " << read_kmers_stats.new_inserts << " num purged "
-  //        << num_purged << KNORM << endl;
   read_kmers_dev.num = num_entries;
 }
 
@@ -600,6 +575,8 @@ void HashTableGPUDriver<MAX_K>::done_all_inserts(int &num_dropped, int &num_uniq
   get_kernel_config(read_kmers_dev.capacity, gpu_compact_ht<MAX_K>, gridsize, threadblocksize);
   //t.start();
   gpu_compact_ht<<<gridsize, threadblocksize>>>(read_kmers_dev, compact_read_kmers_dev, counts_gpu);
+
+  cudaDeviceSynchronize();
   //t.stop();
   //dstate->kernel_timer.inc(t.get_elapsed());
   read_kmers_dev.clear();
@@ -648,11 +625,6 @@ void HashTableGPUDriver<MAX_K>::done_ctg_kmer_inserts(int &attempted_inserts, in
   read_kmers_stats.new_inserts += new_inserts;
 }
 
-// template <int MAX_K>
-// void HashTableGPUDriver<MAX_K>::get_elapsed_time(double &insert_time, double &kernel_time) {
-//   insert_time = dstate->insert_timer.get_elapsed();
-//   kernel_time = dstate->kernel_timer.get_elapsed();
-// }
 
 template <int MAX_K>
 pair<KmerArray<MAX_K> *, CountExts *> HashTableGPUDriver<MAX_K>::get_next_entry() {
@@ -689,6 +661,7 @@ bool HashTableGPUDriver<MAX_K>::print_keys_vals(std::string out_file){
     std::cout << "ERROR! MISMATCH IN OUTPUT VECTORS OF HASHTABLE" <<  std::endl;
     return false;
   }
+  std::cout << "TOTAL KEYS:" << output_keys.size() << std::endl;
   for (int k = 0; k < output_keys.size(); k++){
     for(int j = 0; j < output_keys[k].N_LONGS; j++){
       print_file << output_keys[k].longs[j];
@@ -696,7 +669,9 @@ bool HashTableGPUDriver<MAX_K>::print_keys_vals(std::string out_file){
     print_file << " " << output_vals[k].count << " " << output_vals[k].left << " " << output_vals[k].right;
     print_file << std::endl;
   }
+  print_file.flush();
   print_file.close();
+  
 
   return true;
 }
