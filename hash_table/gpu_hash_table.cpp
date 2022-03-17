@@ -455,6 +455,7 @@ void HashTableGPUDriver<MAX_K>::init(int upcxx_rank_me, int upcxx_rank_n, int km
 
 template <int MAX_K>
 void HashTableGPUDriver<MAX_K>::init_ctg_kmers(int max_elems, size_t gpu_avail_mem) {
+  buff_len = 0;
   pass_type = CTG_KMERS_PASS;
   size_t elem_buff_size = KCOUNT_GPU_HASHTABLE_BLOCK_SIZE * (1 + sizeof(count_t)) * 1.5;
   size_t elem_size = sizeof(KmerArray<MAX_K>) + sizeof(CountsArray);
@@ -485,6 +486,7 @@ void HashTableGPUDriver<MAX_K>::insert_supermer_block() {
 
   int gridsize, threadblocksize;
   //dstate->kernel_timer.start();
+  
   get_kernel_config(buff_len, gpu_unpack_supermer_block, gridsize, threadblocksize);
   gpu_unpack_supermer_block<<<gridsize, threadblocksize>>>(unpacked_elem_buff_dev, packed_elem_buff_dev, buff_len);
   get_kernel_config(buff_len * 2, gpu_insert_supermer_block<MAX_K>, gridsize, threadblocksize);
@@ -493,10 +495,16 @@ void HashTableGPUDriver<MAX_K>::insert_supermer_block() {
   
   cudaDeviceSynchronize();
 
+
+  cudaErrchk(cudaMemcpy(pass_type == READ_KMERS_PASS ? &read_kmers_stats : &ctg_kmers_stats, gpu_insert_stats, sizeof(InsertStats),
+                        cudaMemcpyDeviceToHost));
+
 }
 
 template <int MAX_K>
 void HashTableGPUDriver<MAX_K>::insert_supermer(const string &supermer_seq, count_t supermer_count) {
+  // cout << "** SUPERMERS ADDED:" << super_added << endl;
+  // cout << "** on going BUFF LEN:" << buff_len << endl;
   // commenting out the below because we are launching kernels from main using the gpu driver.
    if (buff_len + supermer_seq.length() + 1 >= KCOUNT_GPU_HASHTABLE_BLOCK_SIZE) {
      std::cout<< " WARNING: SUPERMER BLOCK SIZE IS INCREASING BEYOND THE HASHTABLE BLOCKSIZE LIMIT" << std::endl;
@@ -515,6 +523,8 @@ void HashTableGPUDriver<MAX_K>::insert_supermer(const string &supermer_seq, coun
 
 }
 
+// this purges all the kmers with count less than 2 or with zero extensions.
+// counts_gpu gets the number of elements purged and the numbers not purged
 template <int MAX_K>
 void HashTableGPUDriver<MAX_K>::purge_invalid(int &num_purged, int &num_entries) {
    std::cout << "KMER LEN IS:"<< kmer_len << std::endl;
@@ -536,6 +546,13 @@ void HashTableGPUDriver<MAX_K>::purge_invalid(int &num_purged, int &num_entries)
   cudaErrchk(cudaMemcpy(&counts_host, counts_gpu, NUM_COUNTS * sizeof(unsigned int), cudaMemcpyDeviceToHost));
   num_purged = counts_host[0];
   num_entries = counts_host[1];
+  auto expected_num_entries = read_kmers_stats.new_inserts - num_purged;
+  
+  if (num_entries != (int)expected_num_entries)
+    std::cout << "[" << "upcxx_rank_me" << "] WARNING mismatch " << num_entries << " != " << expected_num_entries << " diff "
+         << (num_entries - (int)expected_num_entries) << " new inserts " << read_kmers_stats.new_inserts << " num purged "
+         << num_purged << std::endl;
+  
   read_kmers_dev.num = num_entries;
 }
 
@@ -551,6 +568,7 @@ void HashTableGPUDriver<MAX_K>::flush_inserts() {
 
 template <int MAX_K>
 void HashTableGPUDriver<MAX_K>::done_all_inserts(int &num_dropped, int &num_unique, int &num_purged) {
+
   int num_entries = 0;
   purge_invalid(num_purged, num_entries);
   read_kmers_dev.num = num_entries;
@@ -560,6 +578,8 @@ void HashTableGPUDriver<MAX_K>::done_all_inserts(int &num_dropped, int &num_uniq
   cudaFree(unpacked_elem_buff_dev.seqs);
   if (packed_elem_buff_dev.counts) cudaFree(packed_elem_buff_dev.counts);
   if (unpacked_elem_buff_dev.counts) cudaFree(unpacked_elem_buff_dev.counts);
+
+
   cudaFree(gpu_insert_stats);
   // overallocate to reduce collisions
   num_entries *= 1.3;
@@ -585,9 +605,9 @@ void HashTableGPUDriver<MAX_K>::done_all_inserts(int &num_dropped, int &num_uniq
   cudaFree(counts_gpu);
   num_dropped = counts_host[0];
   num_unique = counts_host[1];
-  // if (num_unique != read_kmers_dev.num)
-  //   cerr << KLRED << "[" << upcxx_rank_me << "] <gpu_hash_table.cpp:" << __LINE__ << "> WARNING: " << KNORM
-  //        << "mismatch in expected entries " << num_unique << " != " << read_kmers_dev.num << "\n";
+  if (num_unique != read_kmers_dev.num)
+    std::cout << "[" << "upcxx_rank_me" << "] <gpu_hash_table.cpp:" << __LINE__ << "> WARNING: "
+         << "mismatch in expected entries " << num_unique << " != " << read_kmers_dev.num << std::endl;
   // now copy the gpu hash table values across to the host
   // We only do this once, which requires enough memory on the host to store the full GPU hash table, but since the GPU memory
   // is generally a lot less than the host memory, it should be fine.
@@ -599,6 +619,7 @@ void HashTableGPUDriver<MAX_K>::done_all_inserts(int &num_dropped, int &num_uniq
   cudaErrchk(cudaMemcpy(output_vals.data(), compact_read_kmers_dev.vals, compact_read_kmers_dev.capacity * sizeof(CountExts),
                         cudaMemcpyDeviceToHost));
   compact_read_kmers_dev.clear();
+  cudaDeviceSynchronize();
 }
 
 template <int MAX_K>
@@ -661,7 +682,7 @@ bool HashTableGPUDriver<MAX_K>::print_keys_vals(std::string out_file){
     std::cout << "ERROR! MISMATCH IN OUTPUT VECTORS OF HASHTABLE" <<  std::endl;
     return false;
   }
-  std::cout << "TOTAL KEYS:" << output_keys.size() << std::endl;
+  
   for (int k = 0; k < output_keys.size(); k++){
     for(int j = 0; j < output_keys[k].N_LONGS; j++){
       print_file << output_keys[k].longs[j];

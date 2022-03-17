@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
 project(app_gpu LANGUAGES CXX)
 set(CMAKE_CUDA_STANDARD 17)
 
-
+include(CMakeDefinitions.txt)
 include_directories("parse_and_pack" "gpu-utils" "hash_table")
 
 # Add adept library code

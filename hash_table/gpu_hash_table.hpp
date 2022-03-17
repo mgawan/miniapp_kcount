@@ -143,6 +143,7 @@ class HashTableGPUDriver {
   int kmer_len;
   int buff_len = 0;
   size_t output_index = 0;
+  int super_added = 0;
 
   KmerCountsMap<MAX_K> read_kmers_dev;
   KmerCountsMap<MAX_K> ctg_kmers_dev;
