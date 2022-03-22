@@ -114,9 +114,10 @@ int main (int argc, char* argv[]){
         kmer_dht.ht_gpu_driver.insert_supermer(supermer.seq, supermer.count);
 
   }
+    std::cout << "PNP done " << std::endl;
   pnp_file.flush();
   pnp_file.close();
-
+std::cout << "PNP done " << std::endl;
   kmer_dht.ht_gpu_driver.insert_supermer_block(); // launch insertion kernel for read kmers
   auto stats_kmer = kmer_dht.ht_gpu_driver.get_stats();
 
@@ -142,6 +143,7 @@ int main (int argc, char* argv[]){
         
         supermer.count = (uint16_t) 2;//(rand() % 3);
         kmer_dht.ht_gpu_driver.insert_supermer(supermer.seq, supermer.count);
+	std::cout <<"insert supermers:" << i << std::endl;
   }
 
     int num_dropped = 0, num_unique = 0, num_purged = 0;

@@ -1,5 +1,3 @@
-#pragma once
-
 /*
  HipMer v 2.0, Copyright (c) 2020, The Regents of the University of California,
  through Lawrence Berkeley National Laboratory (subject to receipt of any required
@@ -42,21 +40,57 @@
  form.
 */
 
-#include <vector>
+#include <iostream>
+#include <array>
 
-namespace gpu_utils {
+// #include "upcxx_utils/colors.h"
+#include "gpu_common.hpp"
 
-void set_gpu_device(int rank_me);
-size_t get_gpu_avail_mem();
-size_t get_gpu_tot_mem();
-std::string get_gpu_device_name();
-std::string get_gpu_device_descriptions();
-//std::vector<std::string> get_gpu_uuids();
-//std::string get_gpu_uuid();
-bool gpus_present();
+namespace gpu_common {
 
-// The first call to create the context on the GPU can take several seconds of real time but no cpu time
-// so start it asap (call this in a new thread)
-void initialize_gpu(double &time_to_initialize, int rank_me);
+void gpu_die(cudaError_t code, const char *file, int line, bool abort) {
+  if (code != cudaSuccess) {
+    std::cerr << "<" << file << ":" << line << "> ERROR:" << cudaGetErrorString(code) << "\n";
+    std::abort();
+    // do not throw exceptions -- does not work properly within progress() throw std::runtime_error(outstr);
+  }
+}
 
-}  // namespace gpu_utils
+QuickTimer::QuickTimer()
+    : secs(0) {}
+
+void QuickTimer::start() { t = std::chrono::high_resolution_clock::now(); }
+
+void QuickTimer::stop() {
+  std::chrono::duration<double> t_elapsed = std::chrono::high_resolution_clock::now() - t;
+  secs += t_elapsed.count();
+}
+
+void QuickTimer::inc(double s) { secs += s; }
+
+double QuickTimer::get_elapsed() { return secs; }
+
+GPUTimer::GPUTimer() {
+  cudaErrchk(cudaEventCreate(&start_event));
+  cudaErrchk(cudaEventCreate(&stop_event));
+  elapsed_t_ms = 0;
+}
+
+GPUTimer::~GPUTimer() {
+  cudaErrchk(cudaEventDestroy(start_event));
+  cudaErrchk(cudaEventDestroy(stop_event));
+}
+
+void GPUTimer::start() { cudaErrchk(cudaEventRecord(start_event, 0)); }
+
+void GPUTimer::stop() {
+  cudaErrchk(cudaEventRecord(stop_event, 0));
+  cudaErrchk(cudaEventSynchronize(stop_event));
+  float ms;
+  cudaErrchk(cudaEventElapsedTime(&ms, start_event, stop_event));
+  elapsed_t_ms += ms;
+}
+
+double GPUTimer::get_elapsed() { return elapsed_t_ms / 1000.0; }
+
+}  // namespace gpu_common

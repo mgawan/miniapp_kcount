@@ -42,21 +42,25 @@
  form.
 */
 
-#include <vector>
+#include <stdint.h>
 
-namespace gpu_utils {
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-void set_gpu_device(int rank_me);
-size_t get_gpu_avail_mem();
-size_t get_gpu_tot_mem();
-std::string get_gpu_device_name();
-std::string get_gpu_device_descriptions();
-//std::vector<std::string> get_gpu_uuids();
-//std::string get_gpu_uuid();
-bool gpus_present();
+#define HipmerHash(key, len) (MurmurHash3_x64_64(key, len))
+#define hashkey(table_size, key, len) (HipmerHash(key, len) % (table_size))
+#define hashstr(table_size, key) (HipmerHash(key, strlen(key)) % (table_size))
 
-// The first call to create the context on the GPU can take several seconds of real time but no cpu time
-// so start it asap (call this in a new thread)
-void initialize_gpu(double &time_to_initialize, int rank_me);
+void MurmurHash3_x64_128(const void *key, const uint32_t len, const uint32_t seed, void *out);
+uint32_t MurmurHash3_x64_32(const void *key, uint32_t len);
+uint64_t MurmurHash3_x64_64(const void *key, uint32_t len);
+uint64_t murmur_hash2_32(const char *key, uint32_t len);
+uint64_t murmur_hash2_64(const void *key, uint32_t len);
+uint32_t SuperFastHash(const char *data, int len);
+uint64_t quick_hash(uint64_t v);
 
-}  // namespace gpu_utils
+
+#ifdef __cplusplus
+}
+#endif

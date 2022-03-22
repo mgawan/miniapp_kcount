@@ -1,3 +1,5 @@
+//empty
+
 #pragma once
 
 /*
@@ -42,21 +44,57 @@
  form.
 */
 
-#include <vector>
+#include <map>
+#include <iterator>
+#include <string>
+// #include <upcxx/upcxx.hpp>
 
-namespace gpu_utils {
+// #include "utils.hpp"
+#include "kmer.hpp"
+#include "gpu_hash_table.hpp"
 
-void set_gpu_device(int rank_me);
-size_t get_gpu_avail_mem();
-size_t get_gpu_tot_mem();
-std::string get_gpu_device_name();
-std::string get_gpu_device_descriptions();
-//std::vector<std::string> get_gpu_uuids();
-//std::string get_gpu_uuid();
-bool gpus_present();
+using namespace std;
+// global variables to avoid passing dist objs to rpcs
+int _dmin_thres = 2.0;
 
-// The first call to create the context on the GPU can take several seconds of real time but no cpu time
-// so start it asap (call this in a new thread)
-void initialize_gpu(double &time_to_initialize, int rank_me);
+size_t estimate_hashtable_memory(size_t num_elements, size_t element_size);
+using count_t = uint32_t;
 
-}  // namespace gpu_utils
+template <int MAX_K>
+class KmerDHT {
+ private:
+  KmerMap<MAX_K> local_kmers;
+  int64_t max_kmer_store_bytes;
+  int64_t my_num_kmers;
+  int max_rpcs_in_flight;
+
+  int minimizer_len = 15;
+
+ public:
+
+  HashTableGPUDriver<MAX_K> ht_gpu_driver;
+  bool using_ctg_kmers = false;
+  
+  KmerDHT(uint64_t my_num_kmers);
+
+  void clear_stores();
+
+  ~KmerDHT();
+
+  void init_ctg_kmers(int64_t max_elems);
+
+  int get_minimizer_len();
+
+  uint64_t get_num_kmers(bool all = false);
+
+  int64_t get_local_num_kmers(void);
+
+  KmerCounts *get_local_kmer_counts(Kmer<MAX_K> &kmer);
+
+  typename KmerMap<MAX_K>::iterator local_kmers_begin();
+
+  typename KmerMap<MAX_K>::iterator local_kmers_end();
+
+  int32_t get_time_offset_us();
+};
+
