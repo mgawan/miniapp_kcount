@@ -1,4 +1,5 @@
 #include "hip/hip_runtime.h"
+#define DEBUG_THREAD 100
 /*
  HipMer v 2.0, Copyright (c) 2020, The Regents of the University of California,
  through Lawrence Berkeley National Laboratory (subject to receipt of any required
@@ -68,7 +69,9 @@ template <int MAX_K>
 __device__ void kmer_set(KmerArray<MAX_K> &kmer1, const KmerArray<MAX_K> &kmer2) {
   int N_LONGS = kmer1.N_LONGS;
   uint64_t old_key;
+  int my_thread = threadIdx.x + blockIdx.x * blockDim.x;
   for (int i = 0; i < N_LONGS - 1; i++) {
+    // printf("setting from thread_id:%d in iter %d \n", my_thread, i);
     old_key = atomicExch((unsigned long long *)&(kmer1.longs[i]), kmer2.longs[i]);
     if (old_key != KEY_EMPTY) printf("ERROR: old key should be KEY_EMPTY\n");
   }
@@ -270,16 +273,26 @@ inline __device__ bool bad_qual(char base) { return (base == 'a' || base == 'c' 
 template <int MAX_K>
 __device__ bool get_kmer_from_supermer(SupermerBuff supermer_buff, uint32_t buff_len, int kmer_len, uint64_t *kmer, char &left_ext,
                                        char &right_ext, count_t &count) {
+                                         
   unsigned int threadid = blockIdx.x * blockDim.x + threadIdx.x;
+  //  if(threadid == DEBUG_THREAD)printf("I am getting supermer:%d\n", threadid);
   int num_kmers = buff_len - kmer_len + 1;
   if (threadid >= num_kmers) return false;
   const int N_LONGS = KmerArray<MAX_K>::N_LONGS;
-  if (!pack_seq_to_kmer(&(supermer_buff.seqs[threadid]), kmer_len, N_LONGS, kmer)) return false;
+  // if(threadid == DEBUG_THREAD)printf("I am getting supermer1:%d\n", threadid);
+  if (!pack_seq_to_kmer(&(supermer_buff.seqs[threadid]), kmer_len, N_LONGS, kmer)) {
+      // if(threadid == DEBUG_THREAD)printf("I am getting supermer2:%d\n", threadid);
+    return false;
+  }
+  // if(threadid == DEBUG_THREAD)printf("I am getting supermer2:%d\n", threadid);
   if (threadid + kmer_len >= buff_len) return false;  // printf("out of bounds %d >= %d\n", threadid + kmer_len, buff_len);
+  // if(threadid == DEBUG_THREAD)printf("I am getting supermer3:%d\n", threadid);
   left_ext = supermer_buff.seqs[threadid - 1];
   right_ext = supermer_buff.seqs[threadid + kmer_len];
   if (left_ext == '_' || right_ext == '_') return false;
+  // if(threadid == DEBUG_THREAD)printf("I am getting supermer4:%d\n", threadid);
   if (!left_ext || !right_ext) return false;
+  // if(threadid == DEBUG_THREAD)printf("I am getting supermer5:%d\n", threadid);
   if (supermer_buff.counts) {
     count = supermer_buff.counts[threadid];
   } else {
@@ -287,6 +300,8 @@ __device__ bool get_kmer_from_supermer(SupermerBuff supermer_buff, uint32_t buff
     if (bad_qual(left_ext)) left_ext = '0';
     if (bad_qual(right_ext)) right_ext = '0';
   }
+
+  // if(threadid == DEBUG_THREAD)printf("still getting supermer%d\n", threadid);
   if (!is_valid_base(left_ext)) {
     printf("ERROR: threadid %d, invalid char for left nucleotide %d\n", threadid, (uint8_t)left_ext);
     return false;
@@ -298,6 +313,7 @@ __device__ bool get_kmer_from_supermer(SupermerBuff supermer_buff, uint32_t buff
   uint64_t kmer_rc[N_LONGS];
   revcomp(kmer, kmer_rc, kmer_len, N_LONGS);
   for (int l = 0; l < N_LONGS; l++) {
+    // if(threadid == DEBUG_THREAD)printf("in for loop, %d of %d from thread:%d\n", l, N_LONGS, threadid);
     if (kmer_rc[l] == kmer[l]) continue;
     if (kmer_rc[l] < kmer[l]) {
       // swap
@@ -309,6 +325,7 @@ __device__ bool get_kmer_from_supermer(SupermerBuff supermer_buff, uint32_t buff
     }
     break;
   }
+  // if(threadid == DEBUG_THREAD)printf("getting supermer done:%d\n", threadid);
   return true;
 }
 
@@ -319,11 +336,15 @@ __global__ void gpu_insert_supermer_block(KmerCountsMap<MAX_K> elems, SupermerBu
   const int N_LONGS = KmerArray<MAX_K>::N_LONGS;
   int attempted_inserts = 0, dropped_inserts = 0, new_inserts = 0, key_empty_overlaps = 0;
   if (threadid > 0 && threadid < buff_len) {
+    //  if(threadid == DEBUG_THREAD)printf("I am starting:%d\n", threadid);
     attempted_inserts++;
     KmerArray<MAX_K> kmer;
     char left_ext, right_ext;
     count_t kmer_count;
-    if (get_kmer_from_supermer<MAX_K>(supermer_buff, buff_len, kmer_len, kmer.longs, left_ext, right_ext, kmer_count)) {
+    auto my_bool = get_kmer_from_supermer<MAX_K>(supermer_buff, buff_len, kmer_len, kmer.longs, left_ext, right_ext, kmer_count);
+    //  if(threadid == DEBUG_THREAD)printf("I have gotten the bool:%d\n", threadid);
+    if (my_bool) {
+      //  if(threadid == DEBUG_THREAD)printf("inside the bool:%d\n", threadid);
       if (kmer.longs[N_LONGS - 1] == KEY_EMPTY) printf("ERROR: block equal to KEY_EMPTY\n");
       if (kmer.longs[N_LONGS - 1] == KEY_TRANSITION) printf("ERROR: block equal to KEY_TRANSITION\n");
       uint64_t slot = kmer_hash(kmer) % elems.capacity;
@@ -332,25 +353,41 @@ __global__ void gpu_insert_supermer_block(KmerCountsMap<MAX_K> elems, SupermerBu
       bool found_slot = false;
       uint64_t old_key = KEY_TRANSITION;
       for (int j = 0; j < MAX_PROBE; j++) {
+          // if(threadid == DEBUG_THREAD)printf("I am starting3:%d with i: %d\n", threadid,j);
         do {
+          // if(threadid == DEBUG_THREAD)printf("doing the atomicCAS:%d with i: %d\n", threadid,j);
           old_key = atomicCAS((unsigned long long *)&(elems.keys[slot].longs[N_LONGS - 1]), KEY_EMPTY, KEY_TRANSITION);
-        } while (old_key == KEY_TRANSITION);
-        if (old_key == KEY_EMPTY) {
-          kmer_set(elems.keys[slot], kmer);
-          found_slot = true;
-          break;
-        } else if (old_key == kmer.longs[N_LONGS - 1]) {
-          if (kmers_equal(elems.keys[slot], kmer)) {
-            found_slot = true;
-            break;
+          // if(threadid == DEBUG_THREAD)printf("done atomicCAS:%d with old_key: %lx\n", threadid, old_key);
+        // } while (old_key == KEY_TRANSITION);
+        // if (old_key == KEY_EMPTY) {
+        //   if(threadid == DEBUG_THREAD)printf("setting now: %d with old_key: %lx\n", threadid,old_key);
+        //   kmer_set(elems.keys[slot], kmer);
+        //   found_slot = true;
+        //   break;
+        // } else if (old_key == kmer.longs[N_LONGS - 1]) {
+        //   if(threadid == DEBUG_THREAD)printf("setting now: %d with old_key: %lx\n", threadid,old_key);
+        //   if (kmers_equal(elems.keys[slot], kmer)) {
+        //     found_slot = true;
+        //     break;
+        //  }
+       // }
+          if (old_key != KEY_TRANSITION) {
+            if (old_key == KEY_EMPTY) {
+              kmer_set(elems.keys[slot], kmer);
+              found_slot = true;
+            } else if (old_key == kmer.longs[N_LONGS - 1]) {
+              if (kmers_equal(elems.keys[slot], kmer)) found_slot = true;
+            }
           }
-        }
+        } while (old_key == KEY_TRANSITION);
+        if (found_slot) break;
         // quadratic probing - worse cache but reduced clustering
         slot = (start_slot + j * j) % elems.capacity;
         // this entry didn't get inserted because we ran out of probing time (and probably space)
         if (j == MAX_PROBE - 1) dropped_inserts++;
       }
       if (found_slot) {
+        // if(threadid == DEBUG_THREAD)printf("inside the slot:%d\n", threadid);
         ext_count_t *ext_counts = elems.vals[slot].ext_counts;
         if (ctg_kmers) {
           // the count is the min of all counts. Use CAS to deal with the initial zero value
@@ -378,11 +415,16 @@ __global__ void gpu_insert_supermer_block(KmerCountsMap<MAX_K> elems, SupermerBu
         }
       }
     }
+    //  if(threadid == DEBUG_THREAD)printf("I am exiting if:%d\n", threadid);
+
   }
   reduce(attempted_inserts, buff_len, &insert_stats->attempted);
   reduce(dropped_inserts, buff_len, &insert_stats->dropped);
   reduce(new_inserts, buff_len, &insert_stats->new_inserts);
   reduce(key_empty_overlaps, buff_len, &insert_stats->key_empty_overlaps);
+
+  //  if(threadid == DEBUG_THREAD)printf("I am ending:%d\n", threadid);
+  //printf("I am done with kernel:%d\n", threadid);
 }
 
 
@@ -490,12 +532,14 @@ void HashTableGPUDriver<MAX_K>::insert_supermer_block() {
   
   get_kernel_config(buff_len, gpu_unpack_supermer_block, gridsize, threadblocksize);
   hipLaunchKernelGGL(gpu_unpack_supermer_block, gridsize, threadblocksize, 0, 0, unpacked_elem_buff_dev, packed_elem_buff_dev, buff_len);
+ //  cudaErrchk(hipDeviceSynchronize());
   get_kernel_config(buff_len * 2, gpu_insert_supermer_block<MAX_K>, gridsize, threadblocksize);
+  std::cout << "grid size:" << gridsize << " threadblocksize:" << threadblocksize << std::endl;
   hipLaunchKernelGGL(gpu_insert_supermer_block, gridsize, threadblocksize, 0, 0, is_ctg_kmers ? ctg_kmers_dev : read_kmers_dev, unpacked_elem_buff_dev,
                                                            buff_len * 2, kmer_len, is_ctg_kmers, gpu_insert_stats);
  
   std::cout << "Kernels launched" << std::endl; 
-  cudaErrchk(hipDeviceSynchronize());
+   cudaErrchk(hipDeviceSynchronize());
 
   std::cout << "kernels synched" << std::endl;
   cudaErrchk(hipMemcpy(pass_type == READ_KMERS_PASS ? &read_kmers_stats : &ctg_kmers_stats, gpu_insert_stats, sizeof(InsertStats),

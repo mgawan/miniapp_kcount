@@ -185,8 +185,10 @@ inline __device__ bool pack_seq_to_kmer(char *seqs, int kmer_len, int num_longs,
   uint64_t longs = 0;
   memset(kmer, 0, sizeof(uint64_t) * num_longs);
   // each thread extracts one kmer
+  unsigned int threadid = blockIdx.x * blockDim.x + threadIdx.x;
   for (int k = 0; k < kmer_len; k++) {
     char s = seqs[k];
+    // if( threadid == 104) printf("s:%c , ites:%d of %d\n",s, k, kmer_len);
     switch (s) {
       case 'a': s = 'A'; break;
       case 'c': s = 'C'; break;
