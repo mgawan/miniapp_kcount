@@ -109,7 +109,7 @@ int main (int argc, char* argv[]){
         if (offset % 2) supermer.seq[0] &= 15;
         if ((offset + len) % 2) supermer.seq[supermer.seq.length() - 1] &= 240;
         
-        pnp_file <<" Target:"<< target << " seq:"<< supermer.seq<< std::endl;
+        pnp_file <<" Target:"<< target << " len:"<< supermer.seq.length() << " seq:" << supermer.seq<< std::endl;
         supermer.count = (uint16_t)1;
         kmer_dht.ht_gpu_driver.insert_supermer(supermer.seq, supermer.count);
 

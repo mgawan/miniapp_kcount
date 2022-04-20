@@ -432,40 +432,40 @@ uint64_t Kmer<MAX_K>::revcomp_minimizer(uint64_t minimizer, int m) {
   return rc_minz << (2 * (32 - m));
 }
 
-template <int MAX_K>
-uint64_t Kmer<MAX_K>::minimizer_hash(int m) const {
-  uint64_t minimizer = 0;
-  for (int i = 0; i <= Kmer::k - m; i++) {
-    int j = i % 32;
-    int l = i / 32;
-    longs_t mmer = ((longs[l]) << (2 * j)) & ZERO_MASK[m];
-    if (j > 32 - m && l < N_LONGS - 1) {
-      int m_overlap = j + m - 32;
-      mmer |= ((((longs[l + 1]) << (64 * l)) & ZERO_MASK[m_overlap]) >> 2 * (m - m_overlap));
-    }
-    auto mmer_rc = Kmer<MAX_K>::revcomp_minimizer(mmer, m);
-    if (mmer_rc < mmer) mmer = mmer_rc;
-    if (mmer > minimizer) minimizer = mmer;
-  }
-  return quick_hash(minimizer);
-  // return MurmurHash3_x64_64(reinterpret_cast<const void *>(&minimizer), sizeof(minimizer));
-}
+// template <int MAX_K>
+// uint64_t Kmer<MAX_K>::minimizer_hash(int m) const {
+//   uint64_t minimizer = 0;
+//   for (int i = 0; i <= Kmer::k - m; i++) {
+//     int j = i % 32;
+//     int l = i / 32;
+//     longs_t mmer = ((longs[l]) << (2 * j)) & ZERO_MASK[m];
+//     if (j > 32 - m && l < N_LONGS - 1) {
+//       int m_overlap = j + m - 32;
+//       mmer |= ((((longs[l + 1]) << (64 * l)) & ZERO_MASK[m_overlap]) >> 2 * (m - m_overlap));
+//     }
+//     auto mmer_rc = Kmer<MAX_K>::revcomp_minimizer(mmer, m);
+//     if (mmer_rc < mmer) mmer = mmer_rc;
+//     if (mmer > minimizer) minimizer = mmer;
+//   }
+//   return quick_hash(minimizer);
+//   // return MurmurHash3_x64_64(reinterpret_cast<const void *>(&minimizer), sizeof(minimizer));
+// }
 
-template <int MAX_K>
-uint64_t Kmer<MAX_K>::minimizer_hash_fast(int m, const Kmer<MAX_K> *revcomp) const {
-  uint64_t minimizer;
-  if (revcomp == nullptr) {
-    minimizer = get_minimizer_fast(m, true);
-  } else {
-    minimizer = get_minimizer_fast(m, revcomp);
-  }
-  return quick_hash(minimizer);
-}
+// template <int MAX_K>
+// uint64_t Kmer<MAX_K>::minimizer_hash_fast(int m, const Kmer<MAX_K> *revcomp) const {
+//   uint64_t minimizer;
+//   if (revcomp == nullptr) {
+//     minimizer = get_minimizer_fast(m, true);
+//   } else {
+//     minimizer = get_minimizer_fast(m, revcomp);
+//   }
+//   return quick_hash(minimizer);
+// }
 
-template <int MAX_K>
-uint64_t Kmer<MAX_K>::hash() const {
-  return MurmurHash3_x64_64(reinterpret_cast<const void *>(longs.data()), N_LONGS * sizeof(longs_t));
-}
+// template <int MAX_K>
+// uint64_t Kmer<MAX_K>::hash() const {
+//   return MurmurHash3_x64_64(reinterpret_cast<const void *>(longs.data()), N_LONGS * sizeof(longs_t));
+// }
 
 template <int MAX_K>
 void Kmer<MAX_K>::set_zeros() {
@@ -633,6 +633,7 @@ ostream &operator<<(ostream &out, const Kmer<MAX_K> &k) {
   return out << k.to_string();
 }
 
+/*
 #define KMER_K(KMER_LEN) template ostream &operator<<<KMER_LEN>(ostream &out, const Kmer<KMER_LEN> &k);
 
 KMER_K(32);
@@ -651,3 +652,18 @@ KMER_K(160);
 #endif
 
 #undef KMER_K
+*/
+
+template class Kmer<32>;
+#if MAX_BUILD_KMER >= 64
+template class Kmer<64>;
+#endif
+#if MAX_BUILD_KMER >= 96
+template class Kmer<96>;
+#endif
+#if MAX_BUILD_KMER >= 128
+template class Kmer<128>;
+#endif
+#if MAX_BUILD_KMER >= 160
+template class Kmer<160>;
+#endif

@@ -333,17 +333,28 @@ __global__ void gpu_insert_supermer_block(KmerCountsMap<MAX_K> elems, SupermerBu
       for (int j = 0; j < MAX_PROBE; j++) {
         do {
           old_key = atomicCAS((unsigned long long *)&(elems.keys[slot].longs[N_LONGS - 1]), KEY_EMPTY, KEY_TRANSITION);
-        } while (old_key == KEY_TRANSITION);
-        if (old_key == KEY_EMPTY) {
-          kmer_set(elems.keys[slot], kmer);
-          found_slot = true;
-          break;
-        } else if (old_key == kmer.longs[N_LONGS - 1]) {
-          if (kmers_equal(elems.keys[slot], kmer)) {
+        // } while (old_key == KEY_TRANSITION);
+        // if (old_key == KEY_EMPTY) {
+        //   kmer_set(elems.keys[slot], kmer);
+        //   found_slot = true;
+        //   break;
+        // } else if (old_key == kmer.longs[N_LONGS - 1]) {
+        //   if (kmers_equal(elems.keys[slot], kmer)) {
+        //     found_slot = true;
+        //     break;
+        //   }
+        // }
+
+        if (old_key != KEY_TRANSITION) {
+          if (old_key == KEY_EMPTY) {
+            kmer_set(elems.keys[slot], kmer);
             found_slot = true;
-            break;
+          } else if (old_key == kmer.longs[N_LONGS - 1]) {
+            if (kmers_equal(elems.keys[slot], kmer)) found_slot = true;
           }
         }
+      } while (old_key == KEY_TRANSITION);
+        if (found_slot) break;
         // quadratic probing - worse cache but reduced clustering
         slot = (start_slot + j * j) % elems.capacity;
         // this entry didn't get inserted because we ran out of probing time (and probably space)

@@ -52,13 +52,13 @@ extern "C" {
 #define hashkey(table_size, key, len) (HipmerHash(key, len) % (table_size))
 #define hashstr(table_size, key) (HipmerHash(key, strlen(key)) % (table_size))
 
-void MurmurHash3_x64_128(const void *key, const uint32_t len, const uint32_t seed, void *out);
+ void MurmurHash3_x64_128(const void *key, const uint32_t len, const uint32_t seed, void *out);
 uint32_t MurmurHash3_x64_32(const void *key, uint32_t len);
 uint64_t MurmurHash3_x64_64(const void *key, uint32_t len);
-uint64_t murmur_hash2_32(const char *key, uint32_t len);
-uint64_t murmur_hash2_64(const void *key, uint32_t len);
-uint32_t SuperFastHash(const char *data, int len);
-uint64_t quick_hash(uint64_t v);
+// uint64_t murmur_hash2_32(const char *key, uint32_t len);
+// uint64_t murmur_hash2_64(const void *key, uint32_t len);
+// uint32_t SuperFastHash(const char *data, int len);
+// uint64_t quick_hash(uint64_t v);
 
 
 #ifdef __cplusplus
