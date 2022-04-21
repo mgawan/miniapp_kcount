@@ -82,7 +82,6 @@ inline __device__ uint64_t quick_hash(uint64_t v) {
 
 __device__ uint64_t gpu_minimizer_hash_fast(int m, int kmer_len, int num_longs, uint64_t *longs, uint64_t *rc_longs) {
   const int chunk_step = 32 - ((m + 3) / 4) * 4;  // chunk_step is a multiple of 4
-
   int base;
   int num_candidates = kmer_len - m + 1;
   const int max_candidates = MAX_BUILD_KMER;
