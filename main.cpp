@@ -6,7 +6,6 @@
 #include "kmer_dht.hpp"
 #include "gpu_hash_table.hpp"
 #include <stdlib.h> 
-#include <time.h> 
 
 //** DMAX_BUILD_KMER needs to be adjusted in CMakedefs to a larger value for larger KMER_LENS **
 #define QUAL_OFFSET 0
@@ -27,7 +26,6 @@ void process_seq(std::string &seq, std::string &seq_block, uint32_t &dropped) {
 }
 
 int main (int argc, char* argv[]){
-    srand (time(NULL));
     std::vector<std::string> reads;
     std::string   read_in;
     std::string seq_block_in;
@@ -57,11 +55,9 @@ int main (int argc, char* argv[]){
 
     uint32_t total_kmers_est = (300 - MAX_K + 1 )* reads.size();
     uint32_t kmer_max = total_kmers_est;
-    std::cout << "estimted kmers:" << total_kmers_est << std::endl;
     
-    std::cout << "total read size in:"<<read_size_in<<std::endl;
-    std::cout << "block size:"<< seq_block_in.size()<<std::endl;
-    std::cout << "total reads:" << reads.size() << std::endl;
+    std::cout << "Block Size:"<< seq_block_in.size()<<std::endl;
+    std::cout << "Total Reads:" << reads.size() << std::endl;
     int minimizer_len = MAX_BUILD_KMER * 2 / 3 + 1;
     // std::cout << "Minimizer len:"<< minimizer_len << std::endl;
     double driver_init_time = 0;
@@ -109,15 +105,14 @@ int main (int argc, char* argv[]){
         if (offset % 2) supermer.seq[0] &= 15;
         if ((offset + len) % 2) supermer.seq[supermer.seq.length() - 1] &= 240;
         
-        pnp_file <<" Target:"<< target << " seq:"<< supermer.seq<< std::endl;
+        pnp_file <<" Target:"<< target << " len:"<< supermer.seq.length()<< " seq:" << supermer.seq << std::endl;
         supermer.count = (uint16_t)1;
         kmer_dht.ht_gpu_driver.insert_supermer(supermer.seq, supermer.count);
 
   }
-    std::cout << "PNP done " << std::endl;
+  
   pnp_file.flush();
   pnp_file.close();
-std::cout << "PNP done " << std::endl;
   kmer_dht.ht_gpu_driver.insert_supermer_block(); // launch insertion kernel for read kmers
   auto stats_kmer = kmer_dht.ht_gpu_driver.get_stats();
 
@@ -141,9 +136,8 @@ std::cout << "PNP done " << std::endl;
         if (offset % 2) supermer.seq[0] &= 15;
         if ((offset + len) % 2) supermer.seq[supermer.seq.length() - 1] &= 240;
         
-        supermer.count = (uint16_t) 2;//(rand() % 3);
+        supermer.count = (uint16_t) 2;
         kmer_dht.ht_gpu_driver.insert_supermer(supermer.seq, supermer.count);
-	std::cout <<"insert supermers:" << i << std::endl;
   }
 
     int num_dropped = 0, num_unique = 0, num_purged = 0;

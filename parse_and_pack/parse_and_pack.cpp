@@ -247,7 +247,7 @@ kcount_gpu::ParseAndPackGPUDriver::ParseAndPackGPUDriver(int upcxx_rank_me, int 
   cudaErrchk(hipMalloc((void **)&dev_num_supermers, sizeof(int)));
   cudaErrchk(hipMalloc((void **)&dev_num_valid_kmers, sizeof(int)));
   cout << "INFO:pnp gpu driver initiated"<< std::endl;
-  std::cout << "INFO: upcxx_rank:"<< upcxx_rank_me << " ranks:"<<upcxx_rank_n<< " qual_offset:"<< qual_offset << " kmer_len:" << kmer_len << " num_kmer_longs:"<< num_kmer_longs << " minimizer_len:" << minimizer_len << std::endl;
+  // std::cout << "INFO: upcxx_rank:"<< upcxx_rank_me << " ranks:"<<upcxx_rank_n<< " qual_offset:"<< qual_offset << " kmer_len:" << kmer_len << " num_kmer_longs:"<< num_kmer_longs << " minimizer_len:" << minimizer_len << std::endl;
 
   // total storage required is approx KCOUNT_SEQ_BLOCK_SIZE * (1 + num_kmers_longs * sizeof(uint64_t) + sizeof(int) + 1)
   dstate = new ParseAndPackDriverState();
@@ -268,7 +268,6 @@ kcount_gpu::ParseAndPackGPUDriver::~ParseAndPackGPUDriver() {
 }
 
 int kcount_gpu::ParseAndPackGPUDriver::process_seq_block(const string &seqs, unsigned int &num_valid_kmers) {
-  std::cout<< "INFO:starting process_seq_block" << std::endl;
   QuickTimer func_timer, kernel_timer;
   std::cout << "KCOUNTSEQ:" << KCOUNT_SEQ_BLOCK_SIZE << std::endl;
   if (seqs.length() >= KCOUNT_SEQ_BLOCK_SIZE) return 2;
@@ -284,15 +283,20 @@ int kcount_gpu::ParseAndPackGPUDriver::process_seq_block(const string &seqs, uns
   int gridsize, threadblocksize;
   get_kernel_config(seqs.length(), parse_and_pack, gridsize, threadblocksize);
   kernel_timer.start();
+
   hipLaunchKernelGGL(parse_and_pack, gridsize, threadblocksize, 0, 0, dev_seqs, minimizer_len, kmer_len, num_kmer_longs, seqs.length(), dev_kmer_targets,
                                                 upcxx_rank_n);
 
   cudaErrchk(hipMemset(dev_num_supermers, 0, sizeof(int)));
   cudaErrchk(hipMemset(dev_num_valid_kmers, 0, sizeof(int)));
+
+
   get_kernel_config(num_kmers, build_supermers, gridsize, threadblocksize);
   hipLaunchKernelGGL(build_supermers, gridsize, threadblocksize, 0, 0, dev_seqs, dev_kmer_targets, num_kmers, kmer_len, seqs.length(), dev_supermers,
                                                  dev_num_supermers, dev_num_valid_kmers, upcxx_rank_me);
+  
   cudaErrchk(hipMemcpy(&num_valid_kmers, dev_num_valid_kmers, sizeof(unsigned int), hipMemcpyDeviceToHost));
+
   unsigned int num_supermers;
   cudaErrchk(hipMemcpy(&num_supermers, dev_num_supermers, sizeof(unsigned int), hipMemcpyDeviceToHost));
   supermers.resize(num_supermers);
@@ -304,12 +308,12 @@ int kcount_gpu::ParseAndPackGPUDriver::process_seq_block(const string &seqs, uns
   cudaErrchk(hipEventRecord(dstate->event));
   func_timer.stop();
   t_func += func_timer.get_elapsed();
-  std::cout<< "INFO:pnp and build_supermers kernels launched" << std::endl;
+  
   return true;
 }
 
 void kcount_gpu::ParseAndPackGPUDriver::pack_seq_block(const string &seqs) {
-  std::cout<< "INFO: launching pack_seqs kernels"<< std::endl;
+  
   int packed_seqs_len = halve_up(seqs.length());
   cudaErrchk(hipMemcpy(dev_seqs, &seqs[0], seqs.length(), hipMemcpyHostToDevice));
   cudaErrchk(hipMemset(dev_packed_seqs, 0, packed_seqs_len));
@@ -322,7 +326,6 @@ void kcount_gpu::ParseAndPackGPUDriver::pack_seq_block(const string &seqs) {
   t_kernel += t.get_elapsed();
   packed_seqs.resize(packed_seqs_len);
   cudaErrchk(hipMemcpy(&(packed_seqs[0]), dev_packed_seqs, packed_seqs_len, hipMemcpyDeviceToHost));
-  std::cout<< "INFO: launched pack_seqs kernels"<< std::endl;
 }
 
 tuple<double, double> kcount_gpu::ParseAndPackGPUDriver::get_elapsed_times() { return {t_func, t_kernel}; }

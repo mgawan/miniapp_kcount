@@ -532,20 +532,16 @@ void HashTableGPUDriver<MAX_K>::insert_supermer_block() {
   
   get_kernel_config(buff_len, gpu_unpack_supermer_block, gridsize, threadblocksize);
   hipLaunchKernelGGL(gpu_unpack_supermer_block, gridsize, threadblocksize, 0, 0, unpacked_elem_buff_dev, packed_elem_buff_dev, buff_len);
- //  cudaErrchk(hipDeviceSynchronize());
+  
   get_kernel_config(buff_len * 2, gpu_insert_supermer_block<MAX_K>, gridsize, threadblocksize);
-  std::cout << "grid size:" << gridsize << " threadblocksize:" << threadblocksize << std::endl;
+  
   hipLaunchKernelGGL(gpu_insert_supermer_block, gridsize, threadblocksize, 0, 0, is_ctg_kmers ? ctg_kmers_dev : read_kmers_dev, unpacked_elem_buff_dev,
                                                            buff_len * 2, kmer_len, is_ctg_kmers, gpu_insert_stats);
  
-  std::cout << "Kernels launched" << std::endl; 
    cudaErrchk(hipDeviceSynchronize());
 
-  std::cout << "kernels synched" << std::endl;
   cudaErrchk(hipMemcpy(pass_type == READ_KMERS_PASS ? &read_kmers_stats : &ctg_kmers_stats, gpu_insert_stats, sizeof(InsertStats),
                         hipMemcpyDeviceToHost));
-
-  std::cout << "data copied" << std::endl;
 
 }
 
