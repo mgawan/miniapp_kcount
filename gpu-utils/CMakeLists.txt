@@ -14,18 +14,19 @@ if(NOT MY_PLATFORM STREQUAL "amd")
     endif()
 else()
      message(STATUS "Building for AMD devices")
-    find_package(hip)
+     find_package(hip)
 endif()
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 file(GLOB SOURCE_FILES *.cpp)
 file(GLOB HEADER_FILES *.hpp)
 
-if(NOT MY_PLATFORM STREQUAL "amd")
-	if(MY_PLATFORM STREQUAL "cuda")
-		enable_language(CUDA)
-		set_source_files_properties(${SOURCE_FILES} PROPERTIES LANGUAGE CUDA LINKER_LANGUAGE CUDA)
-	endif()
+if(MY_PLATFORM STREQUAL "cuda")
+    enable_language(CUDA)
+    set_source_files_properties(${SOURCE_FILES} PROPERTIES LANGUAGE CUDA LINKER_LANGUAGE CUDA)
+elseif(MY_PLATFORM STREQUAL "amd")
+    enable_language(HIP)
+    set_source_files_properties(${SOURCE_FILES} PROPERTIES LANGUAGE HIP LINKER_LANGUAGE HIP)
 endif()
 
 
@@ -42,5 +43,5 @@ if(NOT MY_PLATFORM STREQUAL "amd")
     endif()
 endif()
 
-target_link_libraries(utils_lib_shared hip::device)
+# target_link_libraries(utils_lib_shared)
 
