@@ -7,7 +7,7 @@ module load rocm
 
 mkdir build
 cd build
-cmake -DCMAKE_CXX_COMPILER=hipcc ../
+cmake ../
 make
 ```
 
